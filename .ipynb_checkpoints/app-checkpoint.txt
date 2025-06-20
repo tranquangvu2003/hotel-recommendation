@@ -1,0 +1,33 @@
+from flask import Flask, request, jsonify
+import joblib
+import pandas as pd
+from sklearn.metrics.pairwise import cosine_similarity
+
+# Load model
+model = joblib.load("content_based_model.joblib")
+hotel_features = model["features"]
+
+app = Flask(__name__)
+
+@app.route("/recommend", methods=["GET"])
+def recommend():
+    user_id = int(request.args.get("user_id"))
+    history = {
+        1: [2, 3],
+        2: [3],
+        3: [5],
+    }
+    liked_hotels = history.get(user_id)
+    if not liked_hotels:
+        return jsonify({"user_id": user_id, "recommendations": []})
+    
+    liked_vectors = hotel_features.loc[liked_hotels]
+    user_profile = liked_vectors.mean().values.reshape(1, -1)
+    sims = cosine_similarity(user_profile, hotel_features)[0]
+    sim_df = pd.DataFrame({'hotel_id': hotel_features.index, 'score': sims})
+    sim_df = sim_df[~sim_df['hotel_id'].isin(liked_hotels)]
+    top_hotels = sim_df.sort_values(by="score", ascending=False).head(3)['hotel_id'].tolist()
+    return jsonify({"user_id": user_id, "recommendations": top_hotels})
+
+if __name__ == "__main__":
+    app.run(debug=True)
