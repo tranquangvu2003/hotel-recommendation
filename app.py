@@ -17,24 +17,36 @@ try:
 except Exception as e:
     print("❌ Failed to load model:", str(e))
     hotel_features = None
+
+
 @app.route("/refresh_model", methods=["POST"])
 def refresh_model():
     try:
-        # 🔁 Chạy lại train_model_script.py
         subprocess.run(["python", "train_model_script.py"], check=True)
-
-        # ✅ Load lại file .joblib sau khi train
         global hotel_features, raw_hotels, user_orders
         model_data = joblib.load("content_based_model.joblib")
         hotel_features = model_data['features']
         raw_hotels = model_data['raw_hotels']
         user_orders = model_data['user_order']
-
         return jsonify({"message": "Model refreshed successfully!"})
     except subprocess.CalledProcessError as e:
         return jsonify({"error": f"Training failed: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# Hàm đánh giá mức độ phù hợp từ cosine similarity
+def get_suitability_label(score):
+    if score >= 0.9:
+        return "rất phù hợp"
+    elif score >= 0.7:
+        return "phù hợp"
+    elif score >= 0.5:
+        return "trung bình"
+    else:
+        return "ít phù hợp"
+
+
 @app.route("/recommend", methods=["GET"])
 def recommend():
     try:
@@ -63,10 +75,13 @@ def recommend():
 
         result = raw_hotels.set_index('hotel_id').loc[sim_df['hotel_id']].copy()
         result['score'] = sim_df.set_index('hotel_id')['score']
+        result['suitability'] = result['score'].apply(get_suitability_label)
 
         return jsonify(result.reset_index().to_dict(orient='records'))
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True)
