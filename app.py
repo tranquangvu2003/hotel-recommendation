@@ -35,7 +35,6 @@ def refresh_model():
         return jsonify({"error": str(e)}), 500
 
 
-# Hàm đánh giá mức độ phù hợp từ cosine similarity
 def get_suitability_label(score):
     if score >= 0.9:
         return "rất phù hợp"
